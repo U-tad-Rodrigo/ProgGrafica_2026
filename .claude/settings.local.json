@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Rodrigo/Downloads/**)",
+      "Read(//c/Users/Rodrigo/Desktop/**)",
+      "Read(//c/Users/Rodrigo/**)",
+      "Bash(unzip -l \"/c/Users/Rodrigo/Downloads/ProgGrafica_2024.zip\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(mkdir -p /tmp/pgraf_extract)",
+      "Bash(unzip -o \"/c/Users/Rodrigo/Downloads/ProgGrafica_2024.zip\" \"ProgGrafica_2024/*.cpp\" \"ProgGrafica_2024/*.h\" \"ProgGrafica_2024/data/*\" -d /tmp/pgraf_extract)",
+      "Read(//tmp/pgraf_extract/**)",
+      "Read(//tmp/pgraf_extract/ProgGrafica_2024/**)",
+      "Bash(unzip *)",
+      "Bash(cp '/tmp/pgraf_extract/ProgGrafica_2024/*.cpp' 'C:/Users/Rodrigo/CARRERA/ASIGNATURAS/PRGR — Prog Gráfica/codigo/OpenGL/ProgGrafica/ProgGrafica_2024/MainClase/')",
+      "Bash(cp '/tmp/pgraf_extract/ProgGrafica_2024/*.h' 'C:/Users/Rodrigo/CARRERA/ASIGNATURAS/PRGR — Prog Gráfica/codigo/OpenGL/ProgGrafica/ProgGrafica_2024/MainClase/')"
+    ]
+  }
+}

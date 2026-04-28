@@ -1,99 +1,83 @@
-//
-// Created by Rodrigo on 23/02/2026.
-//
-
 #include "Camera.h"
 #include "EventManager.h"
 
-Camera::Camera(vec4float position, vec4float lookAt, vec4float up) {
-    this->pos = position;
-    this->rot = {0, 0, 0, 1};
-    this->lookAt = lookAt;
+Camera::Camera(vec4float pos, vec4float lookAt, vec4float up)
+{
+    this->pos = pos;
+    this->rot = { 0,0,0,0 };
+    this->lookAt= lookAt;
+    this->lookAtPrime = lookAt - pos;
+    this->lookAtPrime.w = 1;
     this->up = up;
-
-    forward = normalize(lookAt - position);
-    right = {0, 0, 0, 0};
+    this->forward = normalize(lookAt - pos);
 }
 
-matrix4x4f Camera::computeViewMatrix() {
+matrix4x4f Camera::computeViewMatrix()
+{
     matrix4x4f view = make_identityf();
-    right = cross(forward, up);
-    right = normalize(right);
+    this->forward = normalize(lookAt - pos);
+
+    right = normalize(cross(forward, up));
     vec4float upCamera = normalize(cross(right, forward));
-
-    view.mat2D[0][0] = right.x;
-    view.mat2D[0][1] = right.y;
-    view.mat2D[0][2] = right.z;
-    view.mat2D[0][3] = -dot(right, pos);
-
-    view.mat2D[1][0] = upCamera.x;
-    view.mat2D[1][1] = upCamera.y;
-    view.mat2D[1][2] = upCamera.z;
+    vec4float position = make_vec4float(-dot(right, pos), -dot(upCamera, pos), dot(forward, pos), 1);
+    view.matV[0] = right;
+    view.matV[1] = upCamera;
+    view.matV[2] = -1.0f*forward;
+    view.mat2D[0][3] = -dot(right,pos);
     view.mat2D[1][3] = -dot(upCamera, pos);
-
-    view.mat2D[2][0] = -forward.x;
-    view.mat2D[2][1] = -forward.y;
-    view.mat2D[2][2] = -forward.z;
     view.mat2D[2][3] = dot(forward, pos);
+    view.matV[3] = { 0,0,0,1 };
 
     return view;
 }
 
-matrix4x4f Camera::computeProjectionMatrix(float zFar, float zNear, float fovy, float aspect) {
+matrix4x4f Camera::computeProjectionMatrix(float zNear, float zFar, float fovy, float aspectRatio)
+{
     matrix4x4f projMatrix = make_identityf();
-    float tanHalfFovy = tanf(fovy / 2.0f);
-
-    projMatrix.mat2D[0][0] = 1.0f / (aspect * tanHalfFovy);
-    projMatrix.mat2D[1][1] = 1.0f / tanHalfFovy;
+    projMatrix.mat2D[0][0] =  1.0f / (aspectRatio * tan(fovy * 0.5));
+    projMatrix.mat2D[1][1] =  1.0f / tan(fovy * 0.5f);
     projMatrix.mat2D[2][2] = -(zFar + zNear) / (zFar - zNear);
-    projMatrix.mat2D[2][3] = -(2.0f * zFar * zNear) / (zFar - zNear);
+    projMatrix.mat2D[2][3] =  2.0f * zFar * zNear / (zFar - zNear);
     projMatrix.mat2D[3][2] = -1.0f;
-    projMatrix.mat2D[3][3] = 0.0f;
-
     return projMatrix;
-
 }
 
-void Camera::moveCamera(double timeStep) {
-    float speed = 2.0f;
-    float rotSpeed = 45.0f; // grados por segundo
+void Camera::moveObject(double timeStep)
+{
+    float speed = 5.0f;
+    float speedRotY = EventManager::mouseState.velX*50.0f;
+    float speedRotX = EventManager::mouseState.velY * 100.0f;
 
-    vec4float translation = {0, 0, 0, 1};
 
-    if (EventManager::keyMap[GLFW_KEY_W]) {
-        translation.y -= speed * timeStep;
-    }
-    if (EventManager::keyMap[GLFW_KEY_S]) {
-        translation.y += speed * timeStep;
-    }
-    if (EventManager::keyMap[GLFW_KEY_A]) {
-        translation.x += speed * timeStep;
-    }
-    if (EventManager::keyMap[GLFW_KEY_D]) {
-        translation.x -= speed * timeStep;
-    }
-    if (EventManager::keyMap[GLFW_KEY_Q]) {
-        rot.y += rotSpeed * timeStep;
-    }
-    if (EventManager::keyMap[GLFW_KEY_E]) {
-        rot.y -= rotSpeed * timeStep;
+    if (EventManager::keyMap[GLFW_KEY_LEFT])
+    {
+        pos = pos - right * speed * timeStep;
     }
 
-    matrix4x4f translationMatrix = make_translate(translation.x, translation.y, translation.z);
-    matrix4x4f rotationMatrix = make_rotate(0, rot.y, 0);
+    if (EventManager::keyMap[GLFW_KEY_RIGHT])
+    {
+        pos = pos + right * speed * timeStep;
+    }
+    if (EventManager::keyMap[GLFW_KEY_UP])
+    {
+       pos = pos + forward*speed * timeStep ;
+    }
+    if (EventManager::keyMap[GLFW_KEY_DOWN])
+    {
+        pos = pos - forward * speed * timeStep;
+    }
 
-    pos.x += translation.x;
-    pos.y += translation.y;
-    pos.z += translation.z;
+    rot.y += speedRotY * timeStep;
+    rot.x += speedRotX * timeStep;
 
-    vec4float lookAtRest = {0, 0, -3, 1};
 
-    vec4float rotatedLookAt = rotationMatrix * lookAtRest;
-    lookAt.x = pos.x + rotatedLookAt.x;
-    lookAt.y = pos.y + rotatedLookAt.y;
-    lookAt.z = pos.z + rotatedLookAt.z;
+    matrix4x4f rotM = make_rotateY(rot.y)* make_rotateX(rot.x);
+    lookAt = rotM * lookAtPrime;
+    matrix4x4f trasM = make_traslate(pos.x, pos.y, pos.z);
+    lookAt = trasM * lookAt;
 
-    // Recalcular forward
-    forward = normalize(lookAt - pos);
+    EventManager::mouseState.velY = 0;
+    EventManager::mouseState.velX = 0;
+
+
 }
-

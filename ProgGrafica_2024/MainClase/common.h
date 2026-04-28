@@ -1,34 +1,27 @@
 #pragma once
-
+#include <iostream>
+#pragma once
 #define _USE_MATH_DEFINES
-
 #ifdef GLAD_BIN
 #define GLAD_GL_IMPLEMENTATION
 #endif
-
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
+#include <vector>
 
 #include <iostream>
 #include <vector>
 #include <list>
+
 #include <map>
 #include <string>
-#include <fstream>
-#include <sstream>
 #include <math.h>
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
 using namespace std;
-
-// Constantes de la ventana
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
-
-// Callback para redimensionar ventana
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-
-// Procesar entrada de teclado
-void processInput(GLFWwindow* window);
 
 template <typename T>
 std::vector<T> splitString(const std::string& str, char delim) {

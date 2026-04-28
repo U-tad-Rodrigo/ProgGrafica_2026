@@ -1,137 +1,188 @@
-//
-// Created by Rodrigo on 10/02/2026.
-//
-
 #include "Render.h"
-
 #include "EventManager.h"
 
-Render::Render(){
-    initialized = false;
-    // Inicializar GLFW
-    if (!glfwInit())
+
+
+Render::Render()
+{
+
+    if (glfwInit() != GLFW_TRUE) //si no es "true", errores
     {
-        std::cerr << "ERROR: Failed to initialize glfw" << std::endl;
-        return;
+        cout << "ERROR Iniciando GLFW\n";
     }
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+    else { //c�digo opengl
+#ifdef __APPLE__
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
 
-    this->window = glfwCreateWindow(800, 600, "Hello Triangle", nullptr, nullptr);
-    if (!window)
-    {
-        std::cerr << "ERROR: Failed to create window" << std::endl;
-        glfwTerminate();
-        return;
+        this->window = glfwCreateWindow(640, 480, "PRGR 2026",
+            nullptr, nullptr);
+
+        glfwMakeContextCurrent(window);
+
+        gladLoadGL(glfwGetProcAddress); //usarla despu�s de haber iniciado GLFW
+
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        //		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+        //bucle de renderizado
+        this->salir = false;
+        EventManager::initEventManager(window);
+
+        //Object3D triangulo;
+        //glEnable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
-    glfwMakeContextCurrent(window);
-
-    if (!gladLoadGL(glfwGetProcAddress))
-    {
-        std::cerr << "ERROR: Failed to initialize GLAD" << std::endl;
-        glfwTerminate();
-        return;
-    }
-
-    EventManager::initEventManager(window);
-
-    // Configurar OpenGL
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);  // Gris-verdoso para ver que funciona
-
-    glViewport(0, 0, 800, 600);
-
-    initialized = true;
 }
 
-void Render::setupObject(Object3D *obj) {
-    bufferObject_t bo = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
-    glGenVertexArrays(1, &bo.bufferId);
-    glGenBuffers(1, &bo.vertexBufferId);
-    glGenBuffers(1, &bo.indexBufferId);
+void Render::setupObject(Object3D* obj)
+{
+    //generar buffers
+    bufferObject_t bo = { 0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF };
+    glGenVertexArrays(1, &bo.bufferId); //generar lista de buffers
+    glGenBuffers(1, &bo.vertexBufferId); //genera un buffer de v�rtices
+    glGenBuffers(1, &bo.indexBufferId); //genera un buffer de ids de v�rtice
+    //copiar datos
+        //activar buffer
+    glBindVertexArray(bo.bufferId);//activar lista de buffers
+    glBindBuffer(GL_ARRAY_BUFFER, bo.vertexBufferId); //activar buffer de vertices
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_t) * obj->vertexList.size(),
+        obj->vertexList.data(), GL_STATIC_DRAW);    //copiar datos a buffer
 
-    glBindVertexArray(bo.bufferId);
 
-    glBindBuffer(GL_ARRAY_BUFFER, bo.vertexBufferId);
-    glBufferData(GL_ARRAY_BUFFER, obj->vertexList.size() * sizeof(vertex_t), obj->vertexList.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bo.indexBufferId); //activar buffer de identificadores
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * obj->indexList.size(),
+        obj->indexList.data(), GL_STATIC_DRAW);    //copiar datos a buffer
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bo.indexBufferId);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj->indexList.size() * sizeof(unsigned int), obj->indexList.data(), GL_STATIC_DRAW);
+    //guardar identificadores
+    bufferObjectList[obj->objectId] = bo;
 
-    glBindVertexArray(0);
-
-    bufferedObjectList[obj->objectId] = bo;
 }
 
-void Render::drawObjects() {
-    matrix4x4f proj = cam->computeProjectionMatrix(100.0f, 0.1f, PI/4.0f, 4.0f/3.0f);
-    matrix4x4f projT = transpose(proj);
+void Render::addObject(Object3D *obj) {
+    //setup de objeto
+    setupObject(obj);
+    //Añadirlo a la lista de futuros objetos
+    nextObjectList.push_back(obj);
+}
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(projT.mat);
-    matrix4x4f view = cam->computeViewMatrix();
-    matrix4x4f viewT = transpose(view);
+void Render::updateObjects(double timeStep)
+{
+    cam->moveObject(timeStep);
+    luz->moveObject(timeStep);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(viewT.mat);
+    for (auto& obj : objectList)
+    {
+        obj->moveObject(timeStep);
+    }
 
+    //Eliminar objetos desactivados y añadir objetos nuevos a lista activa
+    //vector<Object3D*> aux;
+    map<float,vector<Object3D*>> aux;
     for (auto& obj : objectList) {
-        auto bo = bufferedObjectList[obj->objectId];
-        glPushMatrix();
+        if (!obj->shouldDelete) {
+            float dist = 0;
+            dist=distance(cam->pos, obj->posicion);
+            aux[dist].push_back(obj);
+            //aux.push_back(obj);
+
+        }else {
+            //eliminar de sistema
+            delete obj;
+        }
+    }
+
+    //Añadir objetos a la nueva lista activa
+    for (auto& obj : nextObjectList) {
+        float dist = 0;
+        dist=distance(cam->pos, obj->posicion);
+        aux[dist].push_back(obj);
+    }
+
+    //intercambiar listas
+    nextObjectList.clear();
+    for (auto l = aux.rbegin() ; l!=aux.rend(); l++) {
+        int size = l->second.size();
+        int origSize = objectList.size();
+        objectList.resize(origSize + size);
+        std::memcpy(objectList.data() + origSize, l->second.data(), sizeof(Object3D*) * size);
+    }
+}
+
+void Render::drawObjects()
+{
+    //por cada objeto
+    for(auto& obj: objectList){
+        //setear buffers
+        obj->prg->useProgram();
+        auto bo = bufferObjectList[obj->objectId]; //recuperar lista buffers
+        glBindVertexArray(bo.bufferId);//activar lista de buffers
+        glBindBuffer(GL_ARRAY_BUFFER, bo.vertexBufferId); //activar buffer de vertices
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bo.indexBufferId); //activar buffer de identificadores
+
 
         matrix4x4f model = obj->computeModelMatrix();
-        matrix4x4f modelT = transpose(model);
-        glMultMatrixf(modelT.mat);
+        //setear matriz modelo
+        //matriz Modelo Vista Proyecci�n
+        
 
-        glBindVertexArray(bo.bufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, bo.vertexBufferId);
+        auto mvp= transpose(
+                            cam->computeProjectionMatrix(-0.001f,1000.0f, 3.1416f/4.0f, 4.0f/3.0f)*
+                            cam->computeViewMatrix()*
+                            model);
 
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_COLOR_ARRAY);
-        glVertexPointer(4, GL_FLOAT, sizeof(vertex_t), (void*)offsetof(vertex_t, position));
-        glColorPointer(4, GL_FLOAT, sizeof(vertex_t), (void*)offsetof(vertex_t, color));
 
-        glDrawElements(GL_TRIANGLES, obj->indexList.size(), GL_UNSIGNED_INT, nullptr);
 
-        glDisableClientState(GL_COLOR_ARRAY);
-        glDisableClientState(GL_VERTEX_ARRAY);
-        glBindVertexArray(0);
+        obj->prg->setMatrix(mvp, "MVP");
+        obj->prg->setMatrix(transpose(model), "M");
+        obj->prg->setCamera(cam);
+        obj->prg->setLight(luz);
+        obj->prg->setMaterial(obj->mat);
+        //describir datos:
+        obj->prg->setAttributeData("vPos",4,GL_FLOAT, sizeof(vertex_t),(void*)offsetof(vertex_t, posicion));
+        obj->prg->setAttributeData("vColor", 4, GL_FLOAT, sizeof(vertex_t), (void*)offsetof(vertex_t, color));
+        obj->prg->setAttributeData("vNormal", 4, GL_FLOAT, sizeof(vertex_t), (void*)offsetof(vertex_t, normal));
+        obj->prg->setAttributeData("vTextureCoords", 4, GL_FLOAT, sizeof(vertex_t), (void*)offsetof(vertex_t, texturaCoords));
 
-        glPopMatrix();
+
+        //dibujar
+        glDrawElements(GL_TRIANGLES,obj->indexList.size(), GL_UNSIGNED_INT, nullptr);
     }
+
 }
-void Render::updateObject(double timestep) {
-    cam->moveCamera(timestep);
-    for (auto& obj : objectList) {
-        obj->moveObject(timestep);
-    }
-}
 
-void Render::mainLoop() {
-    if (!initialized || window == nullptr) {
-        return;
-    }
-    double lastTime = glfwGetTime();
-    double newTime = 0;
-    double deltaTime = 0;
+void Render::mainLoop()
+{
+    double lastTime = 0;
+    double newTime = (glfwGetTime());
+    double deltaTime = newTime - lastTime;
 
-    while (!glfwWindowShouldClose(window))
+    while (!salir)
     {
-        EventManager::updateEvents();
 
-        newTime = glfwGetTime();
+        //hacer cosas
+            //calcular tiempo de render
+        newTime = (glfwGetTime());
         deltaTime = newTime - lastTime;
         lastTime = newTime;
 
-        updateObject(deltaTime);
+        updateObjects(deltaTime);
 
-        if (EventManager::keyMap[GLFW_KEY_ESCAPE]) {
-            glfwSetWindowShouldClose(window, true);
-        }
-
+        if (EventManager::keyMap[GLFW_KEY_ESCAPE] || glfwWindowShouldClose(window))
+            salir = true;
+        //limpiar 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        //dibujar
         drawObjects();
+        //intercambiar buffers
         glfwSwapBuffers(window);
-    }
+        //poll de eventos
+        EventManager::updateEvents();
 
+    }
+    glfwTerminate();//�ltima funci�n, libera memoria GLFW
 }

@@ -1,21 +1,29 @@
 #pragma once
+#include "common.h"
+using namespace std;
+class EventManager
+{
+public:  
+    
+    
+    typedef struct {
+        double posX, posY;
+        double velX, velY;
+        map<int, bool> mouseMap;
+    
+    } mouse_t;
 
-// No incluimos common.h aquí para evitar introducir la implementación de GLAD
-// en múltiples unidades de traducción. Declaramos GLFWwindow de forma adelantada
-// y usamos std::map sin "using namespace" en el encabezado.
+    static inline map<int, bool> keyMap;//estado de teclado
+    static inline mouse_t mouseState; //eventos de ratón
+    static inline GLFWwindow* window = nullptr;
 
-#include <map>
-
-struct GLFWwindow; // forward declaration
-
-class EventManager {
-public:
-    static std::map<int,bool> keyMap; // Mapa para almacenar el estado de las teclas
-    static GLFWwindow* window;
     static void initEventManager(GLFWwindow* window);
-    static void keyboardManager(GLFWwindow* window, int key, int scancode, int action, int mods);
-    //static void mouseButtonManager(GLFWwindow* window, int button, int action, int mods);
+
+    static void keyboardManager(GLFWwindow* window, int key, int scancode,
+        int action, int mods);//eventos de teclado
+
+    static void mouseMoveManager(GLFWwindow* window, double xpos, double ypos);//movimientos de ratón
+
     static void updateEvents();
-
-
 };
+
